@@ -140,7 +140,7 @@ class conversationRetrievalChain:
         m = "content: " +  str(related_chunks) + "question: " + self.user_messages + "\nplease answer the question according to the content"
         return self.getChatCompletion(m)
         
-if __name__=='main':
+if __name__=='__main__':
     file_name = "test.pdf"
 
     text = get_pdf_text(file_name)

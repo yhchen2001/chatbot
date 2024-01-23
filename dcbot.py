@@ -22,7 +22,7 @@ chain = conversationRetrievalChain(df)
 #     r = chain.getAnswer(q)
 #     print("assistant:",r)
 
-token = 'MTEyNjc5NTQ3MjA2MTg2MTkyOA.GzBuJw.FAdqWt0wbP4TSWqqgPErpBztgj18dzfq3OplgM'
+token = os.getenv("DISCORD_TOKEN")
 url = 'https://discord.com/api/oauth2/authorize?client_id=1126795472061861928&permissions=8&scope=bot'
 
 chat_log = []
@@ -48,22 +48,25 @@ async def on_message(message: discord.Message):
 
     reply[1:] = ["```" + chunk + "```" if chunk[0] != '\n' else chunk for chunk in reply[1:]]
 
+    # TODO chunk 如果太長會送不出去
     for chunk in reply:
+        print(chunk)
         await message.channel.send(chunk)
     
-    if message.attachments:
-        for attachment in message.attachments:
-            if any(attachment.filename.lower().endswith(ext) for ext in ['png', 'jpg', 'jpeg', 'gif']):
-                image_path = f'./{attachment.filename}'
-                await attachment.save(image_path)
+    # # TODO: push image to imgur and connect with gpt4 to get description
+    # if message.attachments and False:
+    #     for attachment in message.attachments:
+    #         if any(attachment.filename.lower().endswith(ext) for ext in ['png', 'jpg', 'jpeg', 'gif']):
+    #             image_path = f'./{attachment.filename}'
+    #             await attachment.save(image_path)
 
-                # Upload to Imgur
-                imgur_url = upload_to_imgur(image_path, 'YOUR_IMGUR_CLIENT_ID')
+    #             # Upload to Imgur
+    #             imgur_url = upload_to_imgur(image_path, 'YOUR_IMGUR_CLIENT_ID')
 
-                if imgur_url:
-                    await message.channel.send(f"Image uploaded to Imgur: {imgur_url}")
-                else:
-                    await message.channel.send("Failed to upload image to Imgur.")
+    #             if imgur_url:
+    #                 await message.channel.send(f"Image uploaded to Imgur: {imgur_url}")
+    #             else:
+    #                 await message.channel.send("Failed to upload image to Imgur.")
 
 
 # Run the bot with your Discord bot token
