@@ -55,7 +55,7 @@ def get_image_description(image_url):
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "What’s in this image? describe as detailly as possible"},
+                    {"type": "text", "text": "What’s in this image? describe it in detail within 100 words"},
                     {
                         "type": "image_url",
                         "image_url": image_url,
@@ -66,7 +66,7 @@ def get_image_description(image_url):
         max_tokens=300,
     )
 
-    return response.choices[0]
+    return response.choices[0].message.content
 
 def upload_to_imgur(image_path, client_id):
     """
@@ -116,13 +116,42 @@ class conversationRetrievalChain:
         )
         response = completion.choices[0].message.content
         return response
+
+    def getChatCompletionImage(self, q, img_url):
+        response = client.chat.completions.create(
+            model="gpt-4-vision-preview",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": q},
+                        {
+                            "type": "image_url",
+                            "image_url": img_url,
+                        },
+                    ],
+                }
+            ],
+            max_tokens=300,
+        )
+
+        return response.choices[0].message.content
     
-    def addUserMessage(self, m):
+    def addUserMessage(self, m, img_url):
+        q = ""
+        if m:
+            q += m
+        if img_url:
+            q += "the description of image related to the question is " + get_image_description(img_url)
+        if(self.user_messages) == "":
+            self.user_messages = q
+            return
+        # TODO: decide if the description should be added in the prompt or in the response
         prompt = f"""Combine the chat history and follow up question into \
                 a standalone question. Chat History: {self.user_messages} \
-                Follow up question: {m}"""
-        new_message = self.getChatCompletion(prompt)
-        self.user_messages = new_message
+                Follow up question: {q}"""
+        new_q = self.getChatCompletion(prompt)
+        self.user_messages = new_q
 
     def get_top_k(self, question, top_k = 1):
         question_embedding = get_embedding(question)
@@ -133,12 +162,16 @@ class conversationRetrievalChain:
         related_chunks = [self.df['text'][idx] for idx, val in sorted_similarities[:top_k]]
         return related_chunks
     
-    def getAnswer(self, m):
-        self.addUserMessage(m)
+    def getAnswer(self, m = None, img_url = None):
+        self.addUserMessage(m, img_url)
         print("new question:", self.user_messages)
         related_chunks = self.get_top_k(m, 1)
-        m = "content: " +  str(related_chunks) + "question: " + self.user_messages + "\nplease answer the question according to the content"
-        return self.getChatCompletion(m)
+        q = "content: " +  str(related_chunks) + "question: " + self.user_messages + "\nplease answer the question according to the content"
+        if img_url is None:
+            return self.getChatCompletion(q)
+        else:
+            return self.getChatCompletionImage(q, img_url)
+        
         
 if __name__=='__main__':
     file_name = "test.pdf"

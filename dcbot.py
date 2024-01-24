@@ -7,7 +7,16 @@ from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
 import pandas as pd
 from dotenv import load_dotenv
-from retrieval import get_pdf_text, get_embedding_df, upload_to_imgur, conversationRetrievalChain
+from retrieval import (
+    get_pdf_text, 
+    get_embedding_df, 
+    upload_to_imgur, 
+    conversationRetrievalChain, 
+    get_image_description,
+    get_text_chunks
+)
+import asyncio
+from image import get_image_url
 
 load_dotenv()
 file_name = "test.pdf"
@@ -40,8 +49,23 @@ async def on_message(message: discord.Message):
     # Check if the message was sent by the bot itself to avoid an infinite loop
     if message.author == client.user:
         return
-    text = message.clean_content
-    reply = chain.getAnswer(text)
+    
+    q = ""
+    if message.clean_content:
+        text = message.clean_content
+        q += text
+    
+    if message.attachments:
+        for attachment in message.attachments:
+            if any(attachment.filename.lower().endswith(ext) for ext in ['png', 'jpg', 'jpeg', 'gif']):
+                image_path = f'./{attachment.filename}'
+                await attachment.save(image_path)
+                url = get_image_url(image_path)
+                description = get_image_description(url)
+                q += "the description of the image corresponding to the question is " + description
+
+    print("total question:", q)
+    reply = chain.getAnswer(q)
     print(reply)
 
     reply = reply.split("```")
@@ -50,23 +74,9 @@ async def on_message(message: discord.Message):
 
     # TODO chunk 如果太長會送不出去
     for chunk in reply:
-        print(chunk)
-        await message.channel.send(chunk)
-    
-    # # TODO: push image to imgur and connect with gpt4 to get description
-    # if message.attachments and False:
-    #     for attachment in message.attachments:
-    #         if any(attachment.filename.lower().endswith(ext) for ext in ['png', 'jpg', 'jpeg', 'gif']):
-    #             image_path = f'./{attachment.filename}'
-    #             await attachment.save(image_path)
-
-    #             # Upload to Imgur
-    #             imgur_url = upload_to_imgur(image_path, 'YOUR_IMGUR_CLIENT_ID')
-
-    #             if imgur_url:
-    #                 await message.channel.send(f"Image uploaded to Imgur: {imgur_url}")
-    #             else:
-    #                 await message.channel.send("Failed to upload image to Imgur.")
+        smaller_chunks = get_text_chunks(chunk)
+        for smaller_chunk in smaller_chunks:
+            await message.channel.send(smaller_chunk)
 
 
 # Run the bot with your Discord bot token
