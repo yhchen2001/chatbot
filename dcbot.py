@@ -7,72 +7,83 @@ from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
 import pandas as pd
 from dotenv import load_dotenv
-from retrieval import (
+from retrieval_v2 import (
     get_pdf_text, 
     get_embedding_df, 
-    upload_to_imgur, 
     conversationRetrievalChain, 
-    get_image_description,
-    get_text_chunks
+    get_text_chunks,
+    Embs_Table,
+    get_image_description
 )
 import asyncio
-from image import get_image_url
 
 load_dotenv()
-file_name = "test.pdf"
-
-text = get_pdf_text(file_name)
-df = get_embedding_df(text)
-print(df)
-chain = conversationRetrievalChain(df)
-
-# while 1:
-#     q = input("user: ")
-#     r = chain.getAnswer(q)
-#     print("assistant:",r)
-
 token = os.getenv("DISCORD_TOKEN")
 url = 'https://discord.com/api/oauth2/authorize?client_id=1126795472061861928&permissions=8&scope=bot'
 
-chat_log = []
-
 intents = discord.Intents.all()
 client = discord.Client(intents=intents)
+
+pdf_dir = 'pdfs'
+file_name = "test.pdf"
+Embs_Table.pdf_to_embs("test.pdf")
+
+tmp_dir = "tmp_image"
+
+try:
+    os.mkdir(tmp_dir)
+except:
+    pass
+
 
 @client.event
 async def on_ready():
     print(f"We have logged in as {client.user}")
 
+users = {}
 # Event triggered when a message is received
 @client.event
 async def on_message(message: discord.Message):
     # Check if the message was sent by the bot itself to avoid an infinite loop
     if message.author == client.user:
         return
+
+    if message.author.id not in users:
+        chain = conversationRetrievalChain()
+        users[message.author.id] = chain
+    else:
+        chain = users[message.author.id]
     
-    q = ""
+    text = ""
     if message.clean_content:
         text = message.clean_content
-        q += text
     
+    file_paths = []
     if message.attachments:
         for attachment in message.attachments:
-            if any(attachment.filename.lower().endswith(ext) for ext in ['png', 'jpg', 'jpeg', 'gif']):
-                image_path = f'./{attachment.filename}'
-                await attachment.save(image_path)
-                url = get_image_url(image_path)
-                description = get_image_description(url)
-                q += "the description of the image corresponding to the question is " + description
+            if any(attachment.filename.lower().endswith(ext) for ext in ['png', 'jpg', 'jpeg', 'JPEG', 'JPG']):
+                # save all file as .jpg
+                image_name = f'./{attachment.filename}'
+                await attachment.save(f'./{tmp_dir}/{image_name}')
+                name, ext = os.path.splitext(image_name)
+                new_image_name = name + ".jpg"
+                os.rename(f'./{tmp_dir}/{image_name}', f'./{tmp_dir}/{new_image_name}')
 
-    print("total question:", q)
-    reply = chain.getAnswer(q)
+    reply = chain.getAnswer(text, file_paths)
+
+    # remove all saved image
+    for filename in os.listdir(tmp_dir):
+        file_path = os.path.join(tmp_dir, filename)
+
+        # Check if it's a file and not a directory
+        if os.path.isfile(file_path):
+            os.remove(file_path)
     print(reply)
 
     reply = reply.split("```")
 
     reply[1:] = ["```" + chunk + "```" if chunk[0] != '\n' else chunk for chunk in reply[1:]]
 
-    # TODO chunk 如果太長會送不出去
     for chunk in reply:
         smaller_chunks = get_text_chunks(chunk)
         for smaller_chunk in smaller_chunks:
