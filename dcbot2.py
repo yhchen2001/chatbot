@@ -72,7 +72,7 @@ async def addPdf(interaction: discord.Interaction, file:discord.Attachment):
     if not pm.contain(file.filename):
         df = pdf_to_df(file_path)
         pi.upsert_pdf(df)
-        pm.insert([{'name': file.filename, 'content': str(df['text'])}])
+        # pm.insert([{'name': file.filename, 'content': str(df['text'])}])
     else:
         await interaction.followup.send(f"file has already existed")
     

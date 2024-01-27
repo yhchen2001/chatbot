@@ -13,7 +13,7 @@ load_dotenv()
 api_key = os.getenv('OPENAI_API_KEY')
 ocr_api_key = os.getenv('OCR_API_KEY')
 
-def ocr(image_path, lang = 'eng'):
+def ocr(image_path, lang = 'ㄔ'):
     img = cv2.imread(image_path)
     height, width, _ = img.shape
     roi = img[0: height, 0: width]
