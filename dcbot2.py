@@ -11,6 +11,7 @@ from retrieval_final import (
     pm
 )
 import time
+from pdf_processing import pdf_to_df
 from utils import get_embeddings, get_text_chunks
 
 config = dotenv_values(".env")
@@ -69,8 +70,9 @@ async def addPdf(interaction: discord.Interaction, file:discord.Attachment):
         await file.save(f'./{pdf_tmp_dir}/{file.filename}')
     
     if not pm.contain(file.filename):
-        pi.add_pdf(file_path)
-        pm.insert([{'name': file.filename, 'content': ''}])
+        df = pdf_to_df(file_path)
+        pi.upsert_pdf(df)
+        pm.insert([{'name': file.filename, 'content': str(df['text'])}])
     else:
         await interaction.followup.send(f"file has already existed")
     
