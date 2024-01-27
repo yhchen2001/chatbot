@@ -8,7 +8,6 @@ import os
 from retrieval_final import (
     conversationRetrievalChain, 
     pi,
-    pm
 )
 import time
 from pdf_processing import pdf_to_df
@@ -59,7 +58,7 @@ except:
     guild=discord.Object(id=GUILD_ID)
 )
 async def addPdf(interaction: discord.Interaction, file:discord.Attachment):
-    await interaction.response.send_message(f'You have uploaded: {file.url}')
+    await interaction.response.send_message(f'You are uploading: {file.url}')
     print(file.content_type)
 
     if(not file.filename.endswith('.pdf') and not file.content_type == 'application/pdf'):
@@ -69,12 +68,9 @@ async def addPdf(interaction: discord.Interaction, file:discord.Attachment):
         file_path = f'./{pdf_tmp_dir}/{file.filename}'
         await file.save(f'./{pdf_tmp_dir}/{file.filename}')
     
-    if not pm.contain(file.filename):
-        df = pdf_to_df(file_path)
-        pi.upsert_pdf(df)
-        # pm.insert([{'name': file.filename, 'content': str(df['text'])}])
-    else:
-        await interaction.followup.send(f"file has already existed")
+    df = pdf_to_df(file_path)
+    pi.upsert_pdf(df, filename=file.filename)
+    await interaction.followup.send(f"uploaded")
     
 
 tmp_dir = "tmp_image"
@@ -109,20 +105,20 @@ async def ask(interaction: discord.Interaction, text: str, attachment: discord.A
         await attachment.save(image_path)
 
         name, ext = os.path.splitext(image_path)
-        new_image_path = f'./{name}.jpg'
+        new_image_path = f'{name}.png'
         os.rename(image_path, new_image_path)
         file_names.append(new_image_path)
     elif attachment:
         await interaction.response.send_message(f'not a image')
 
     await interaction.response.send_message('starts answering')
-
+    print("file names = ", file_names)
     reply = chain.getAnswer(text, file_names)
     print(reply)
 
     # remove tmp files
-    for file_name in file_names:
-        os.remove(file_name)
+    # for file_name in file_names:
+    #     os.remove(file_name)
 
     chunks = get_text_chunks(reply)
     for chunk in chunks:

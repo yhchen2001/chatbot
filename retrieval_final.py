@@ -14,7 +14,7 @@ import numpy as np
 from pinecone_index import PineconeIndex
 from pdf_processing import pdf_to_df
 from pinecone import Pinecone, PodSpec
-from pymonkey import PyMonkey
+from freq_index import FreqIndex
 
 #global settings
 load_dotenv()
@@ -25,14 +25,13 @@ client = OpenAI()
 # dfs = pdfs_to_dfs('pdfs')
 index_name = 'tsid-grp2'
 pi = PineconeIndex(Pinecone(os.getenv('PINECONE_API_KEY')), index_name)
-pm = PyMonkey()
+fq_pi = FreqIndex(Pinecone(os.getenv('PINECONE_API_KEY')), index_name)
 # for df in dfs:
 #     pi.upsert_pdf(df=df)
 
-
-
+from freq_index import FreqIndex
 class PastFQ:
-    FQ_database = pd.DataFrame(columns=["query", "embs", "response"])
+    FQ_database = fq_pi
     similarity_threshold = 0.95
 
     @classmethod
@@ -42,34 +41,23 @@ class PastFQ:
             model="text-embedding-ada-002"
         )
         embs = response.data[0].embedding
-        row_data = {
-            'query': query,
-            'embs': embs,
-            'response': text_response
-        }
-        row_df = pd.DataFrame([row_data])
-        cls.FQ_database = pd.concat([cls.FQ_database, row_df], ignore_index=True)
-        #print("F&Q database rows:", len(cls.FQ_database))
+        cls.FQ_database.upsert(embs, text_response)
 
     @classmethod
     def search_similar_query(cls, question):
-        if len(cls.FQ_database) < 5:
-            output = ""
+        response = client.embeddings.create(
+            input=question,
+            model="text-embedding-ada-002"
+        )
+        embs = response.data[0].embedding
+        metadata, score = cls.FQ_database.query(embs)
+        if len(metadata) == len(score) and len(metadata) != 0:
+            if score[0] >= cls.similarity_threshold:
+                return metadata[0]['answer']
         else:
-            response = client.embeddings.create(
-                input=question,
-                model="text-embedding-ada-002"
-            )
-            question_embedding = response.data[0].embedding
-            similarities = [cosine_similarity([question_embedding], [e])[0][0] for e in cls.FQ_database['embs']]
-            sorted_similarities = (sorted(enumerate(similarities), key= lambda x: x[1]))[::-1]
-            for idx, val in sorted_similarities[:1]:
-                if val >= cls.similarity_threshold:
-                    output = cls.FQ_database['response'][idx]
-                else:
-                    output = ""
+            return ""
+    #{'answer': metadata[0]['answer'], 'score': score[0]}
 
-        return output
         
 class conversationRetrievalChain:
     def __init__(self):
@@ -124,7 +112,7 @@ class conversationRetrievalChain:
         ocrTexts = ""
         for index, img_path in enumerate(image_paths):
             text = get_ocr_text(img_path)
-            ocrTexts += f"img{index+1} ORC text : {text}\n"
+            ocrTexts += f"{text}"
 
         return ocrTexts
 
@@ -153,9 +141,9 @@ class conversationRetrievalChain:
                 ]
                 }
             ],
-            "max_tokens": 300
         }
         for image_path in image_paths:
+            print(image_path)
             payload["messages"][0]["content"].append(
                 {
                     "type": "image_url",
@@ -173,14 +161,10 @@ class conversationRetrievalChain:
         new_question = ""
         if text_input:
             new_question += text_input
+
         if len(img_paths) != 0:
             ocr_text = self.getOCR(img_paths)
-            description_prompt = f"You are given several images and their corresponding OCR texts. \
-                                OCR text : {ocr_text} \
-                                Describe the images as detailed as possible. Then summarize the image descriptions and OCR texts into a summary.\
-                                Your answer starts with : The images show..."
-            img_description = self.getChatCompletionImage(description_prompt, img_paths)
-            new_question += "Additional description related to the question is : " + img_description
+            new_question += ocr_text
 
         prompt = f"""Given the following conversation and a follow up question,\
                 rephrase the follow up question to be a standalone question.\
@@ -192,6 +176,8 @@ class conversationRetrievalChain:
             condensed_question = new_question
         else:
             condensed_question = self.getChatCompletion(prompt)
+
+        #condensed_question += "additional detail:" + ocr_text
         self.chat_history += f'USER: {new_question}\n'
         #print(f"condensed_question : \n {condensed_question} \n")
 
@@ -308,22 +294,31 @@ class conversationRetrievalChain:
         #print("======================= REFINE ========================")
 
     def getAnswer(self, user_input=None, img_paths=None):
+        print("image paths 299 ", img_paths)
         condensed_input = self.condensed_question(user_input, img_paths)
         similarity_answer = PastFQ.search_similar_query(condensed_input)
-        if similarity_answer != "":
+        if similarity_answer and similarity_answer != "":
             #print("!!!!!!!!!!!!!!!!!! USED F&Q !!!!!!!!!!!!!!!!!!!!!!!!!!!")
             answer = similarity_answer
         else:
+            print("input = " , condensed_input)
             related_chunks = self.get_top_k(condensed_input)
             #print("related_chunks",related_chunks)
             
             if len(img_paths) != 0:
-                prompt = f"""Use the following pieces of context and given images to answer the users question.\
+                # prompt = f"""Use the following pieces of context and given images to answer the users question.\
+                #     If you don't know the answer, just say that you don't know, don't try to make up an answer.\
+                #     Context: {str(related_chunks)}\
+                #     Question: {condensed_input}\
+                #     Helpful Answer:"""
+                prompt = f"""Use the following pieces of context to answer the users question.\
                     If you don't know the answer, just say that you don't know, don't try to make up an answer.\
                     Context: {str(related_chunks)}\
                     Question: {condensed_input}\
                     Helpful Answer:"""
-                answer = self.getChatCompletionImage(prompt, img_paths)
+                print("image paths 319 ", img_paths)
+                # answer = self.getChatCompletionImage(prompt, img_paths)
+                answer = self.getChatCompletion(prompt)
             else:
                 prompt = f"""Use the following pieces of context to answer the users question.\
                     If you don't know the answer, just say that you don't know, don't try to make up an answer.\

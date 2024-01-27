@@ -57,7 +57,7 @@ class PineconeIndex():
 
 if __name__ == '__main__':
 	load_dotenv()
-	index_name = 'tsid-grp2'
+	index_name = 'tsidgrp2'
 	pci = PineconeIndex(Pinecone(os.getenv('PINECONE_API_KEY')), index_name)
 	pci.upsert_pdf(
 		{

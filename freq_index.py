@@ -40,11 +40,12 @@ class FreqIndex():
 		result = self.index.query(vector=embedding, top_k=top_k, namespace=self.namespace, include_metadata=True)['matches']
 		# print(result)
 		metadata, score = [res['metadata'] for res in result], [res['score'] for res in result]
-		return {'answer': metadata[0]['answer'], 'score': score[0]}
+		return metadata, score
+		# return {'answer': metadata[0]['answer'], 'score': score[0]}
 
 if __name__ == '__main__':
 	load_dotenv()
-	fi = FreqIndex(Pinecone(os.getenv('PINECONE_API_KEY')), 'tsidgrp2')
+	# fi = FreqIndex(Pinecone(os.getenv('PINECONE_API_KEY')), 'tsidgrp2')
 
 	# fi.upsert_solution([random.uniform(-1, 1) for _ in range(1536)], 'd')
 	# fi.upsert_solution([random.uniform(-1, 1) for _ in range(1536)], 'e')

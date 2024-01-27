@@ -2,11 +2,13 @@
 
 ## how to use:
 
-1. add your openai api key and dc token to .env file 
-2. 把要install的package install一下（requirement.txt好像沒寫完整)
-3. click https://discord.com/api/oauth2/authorize?client_id=1126795472061861928&permissions=8&scope=bot, add the bot to your server
-4. python3 dcbot.py
+1. add all the required api key and token to the .env file
+2. install all the required package
+3. setup the discord bot following the [link](https://www.youtube.com/watch?v=OgIfnYDa5_Q): 
+4. get the bot token and add the bot to the guild, add it to .env
+5. run ```python3 dcbot.py```
 
-## TODO:
+## flow chart
 
-- [x] add image  
+![messageImage_1706338765256](https://hackmd.io/_uploads/HJ1gcQG56.jpg)
+
